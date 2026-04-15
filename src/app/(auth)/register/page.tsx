@@ -39,39 +39,26 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name },
-        },
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, region, role_type: professionalRole, industry }),
       });
+      const result = await res.json();
 
-      if (authError) {
-        setError(authError.message);
+      if (!res.ok) {
+        setError(result.error || t(locale, 'error'));
         return;
       }
 
-      if (data.user) {
-        const { error: insertError } = await supabase.from('members').insert({
-          id: data.user.id,
-          name,
-          email,
-          region,
-          role_type: professionalRole,
-          industry,
-          status: 'pending',
-          paid: false,
-          role: 'member',
-        });
-
-        if (insertError) {
-          setError(insertError.message);
-          return;
-        }
-
-        router.push('/payment');
+      // Sign in with the newly created account
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError(signInError.message);
+        return;
       }
+
+      router.push('/payment');
     } catch {
       setError(t(locale, 'error'));
     } finally {
