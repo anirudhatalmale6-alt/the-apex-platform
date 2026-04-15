@@ -53,11 +53,11 @@ export default function PaymentPage() {
       // Check if already paid
       const { data: member } = await supabase
         .from('members')
-        .select('status')
-        .eq('user_id', user.id)
+        .select('status, paid')
+        .eq('id', user.id)
         .single();
 
-      if (member?.status === 'active') {
+      if (member?.paid && member?.status === 'active') {
         router.replace('/dashboard');
         return;
       }
