@@ -58,7 +58,7 @@ export default function RegisterPage() {
           name,
           email,
           region,
-          professional_role: professionalRole,
+          role_type: professionalRole,
           industry,
           status: 'pending',
           paid: false,
