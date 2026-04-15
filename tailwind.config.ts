@@ -9,8 +9,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        apex: {
+          gold: '#C9A96E',
+          'gold-light': '#E8D5B0',
+          'gold-dark': '#9A7B4F',
+          bg: '#0A0A0A',
+          card: '#111111',
+          elevated: '#161616',
+          muted: '#888888',
+        },
+      },
+      fontFamily: {
+        playfair: ['Playfair Display', 'serif'],
+        inter: ['Inter', 'system-ui', 'sans-serif'],
       },
     },
   },
