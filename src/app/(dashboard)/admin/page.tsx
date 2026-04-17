@@ -1,17 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Member, Deal, Request } from '@/lib/supabase';
+import { supabase, Member, Deal, Request, Setting } from '@/lib/supabase';
 import { t, getLocale, Locale } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
-import { Users, Briefcase, MessageSquare, Shield, Plus, Check, X, Trash2 } from 'lucide-react';
+import { Users, Briefcase, MessageSquare, Shield, Plus, Check, X, Trash2, Settings } from 'lucide-react';
 
-type Tab = 'overview' | 'members' | 'deals' | 'requests';
+type Tab = 'overview' | 'members' | 'deals' | 'requests' | 'settings';
 
 interface AdminStats {
   totalMembers: number;
   activeMembers: number;
   pendingMembers: number;
+  approvedMembers: number;
+  rejectedMembers: number;
   totalDeals: number;
   openRequests: number;
 }
@@ -30,6 +32,12 @@ const emptyDealForm: DealForm = {
   status: 'active',
 };
 
+const TIER_OPTIONS = [
+  { value: 'inner', labelKey: 'admin_tier_inner' as const },
+  { value: 'private', labelKey: 'admin_tier_private' as const },
+  { value: 'sanctum', labelKey: 'admin_tier_sanctum' as const },
+];
+
 export default function AdminPage() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>('en');
@@ -41,6 +49,8 @@ export default function AdminPage() {
     totalMembers: 0,
     activeMembers: 0,
     pendingMembers: 0,
+    approvedMembers: 0,
+    rejectedMembers: 0,
     totalDeals: 0,
     openRequests: 0,
   });
@@ -49,10 +59,22 @@ export default function AdminPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
 
+  // Tier selection per member (temporary state while admin is choosing)
+  const [selectedTiers, setSelectedTiers] = useState<Record<string, string>>({});
+
   // Deal form
   const [showDealForm, setShowDealForm] = useState(false);
   const [dealForm, setDealForm] = useState<DealForm>(emptyDealForm);
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
+
+  // Settings
+  const [tierPrices, setTierPrices] = useState<Record<string, string>>({
+    tier_inner_price: '2000',
+    tier_private_price: '10000',
+    tier_sanctum_price: '20000',
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -91,14 +113,17 @@ export default function AdminPage() {
       loadMembers(),
       loadDeals(),
       loadRequests(),
+      loadSettings(),
     ]);
   }
 
   async function loadStats() {
-    const [totalRes, activeRes, pendingRes, dealsRes, requestsRes] = await Promise.all([
+    const [totalRes, activeRes, pendingRes, approvedRes, rejectedRes, dealsRes, requestsRes] = await Promise.all([
       supabase.from('members').select('*', { count: 'exact', head: true }),
       supabase.from('members').select('*', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('members').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('members').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('members').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
       supabase.from('deals').select('*', { count: 'exact', head: true }),
       supabase.from('requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     ]);
@@ -107,6 +132,8 @@ export default function AdminPage() {
       totalMembers: totalRes.count ?? 0,
       activeMembers: activeRes.count ?? 0,
       pendingMembers: pendingRes.count ?? 0,
+      approvedMembers: approvedRes.count ?? 0,
+      rejectedMembers: rejectedRes.count ?? 0,
       totalDeals: dealsRes.count ?? 0,
       openRequests: requestsRes.count ?? 0,
     });
@@ -138,7 +165,6 @@ export default function AdminPage() {
       const reqs = data as Request[];
       setRequests(reqs);
 
-      // Fetch member names for from_member IDs
       const memberIds = Array.from(new Set(reqs.map((r) => r.from_member)));
       if (memberIds.length > 0) {
         const { data: nameData } = await supabase
@@ -156,9 +182,59 @@ export default function AdminPage() {
     }
   }
 
-  // Member actions
-  async function toggleMemberStatus(memberId: string, newStatus: 'active' | 'pending') {
-    await supabase.from('members').update({ status: newStatus }).eq('id', memberId);
+  async function loadSettings() {
+    const { data } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['tier_inner_price', 'tier_private_price', 'tier_sanctum_price']);
+
+    if (data) {
+      const prices: Record<string, string> = {};
+      (data as Setting[]).forEach((s) => {
+        // Convert cents to CHF for display
+        prices[s.key] = String(Math.round(parseInt(s.value, 10) / 100));
+      });
+      if (Object.keys(prices).length > 0) {
+        setTierPrices((prev) => ({ ...prev, ...prices }));
+      }
+    }
+  }
+
+  // Member actions - approve with tier
+  async function approveMember(memberId: string) {
+    const tier = selectedTiers[memberId];
+    if (!tier) {
+      alert(locale === 'de' ? 'Bitte w\u00e4hlen Sie eine Stufe aus' : 'Please select a tier first');
+      return;
+    }
+
+    await supabase.from('members').update({
+      status: 'approved',
+      tier: tier,
+      paid: false,
+    }).eq('id', memberId);
+
+    setSelectedTiers((prev) => {
+      const next = { ...prev };
+      delete next[memberId];
+      return next;
+    });
+
+    await Promise.all([loadMembers(), loadStats()]);
+  }
+
+  async function rejectMember(memberId: string) {
+    await supabase.from('members').update({ status: 'rejected' }).eq('id', memberId);
+    await Promise.all([loadMembers(), loadStats()]);
+  }
+
+  async function activateMember(memberId: string) {
+    await supabase.from('members').update({ status: 'active', paid: true }).eq('id', memberId);
+    await Promise.all([loadMembers(), loadStats()]);
+  }
+
+  async function deactivateMember(memberId: string) {
+    await supabase.from('members').update({ status: 'pending', paid: false, tier: null }).eq('id', memberId);
     await Promise.all([loadMembers(), loadStats()]);
   }
 
@@ -206,11 +282,36 @@ export default function AdminPage() {
     await Promise.all([loadRequests(), loadStats()]);
   }
 
+  // Settings actions
+  async function saveSettings() {
+    setSavingSettings(true);
+    setSettingsSaved(false);
+
+    try {
+      // Update each tier price (convert CHF to cents)
+      for (const [key, value] of Object.entries(tierPrices)) {
+        const cents = String(Math.round(parseFloat(value) * 100));
+        await supabase.from('settings').upsert({
+          key,
+          value: cents,
+          updated_at: new Date().toISOString(),
+        });
+      }
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   const tabs: { key: Tab; label: string; icon: typeof Users }[] = [
     { key: 'overview', label: t(locale, 'admin_stats'), icon: Shield },
     { key: 'members', label: t(locale, 'admin_members'), icon: Users },
     { key: 'deals', label: t(locale, 'admin_deals'), icon: Briefcase },
     { key: 'requests', label: t(locale, 'admin_requests'), icon: MessageSquare },
+    { key: 'settings', label: t(locale, 'admin_settings'), icon: Settings },
   ];
 
   if (loading) {
@@ -219,6 +320,22 @@ export default function AdminPage() {
         <div className="w-8 h-8 border-2 border-[#C9A96E] border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
+
+  function getStatusBadge(status: string) {
+    const styles: Record<string, string> = {
+      active: 'bg-emerald-500/10 text-emerald-400',
+      approved: 'bg-blue-500/10 text-blue-400',
+      pending: 'bg-amber-500/10 text-amber-400',
+      rejected: 'bg-red-500/10 text-red-400',
+    };
+    return styles[status] || 'bg-gray-500/10 text-gray-400';
+  }
+
+  function getTierLabel(tier: string | null): string {
+    if (!tier) return '-';
+    const option = TIER_OPTIONS.find((o) => o.value === tier);
+    return option ? t(locale, option.labelKey) : tier;
   }
 
   return (
@@ -263,6 +380,8 @@ export default function AdminPage() {
             { label: t(locale, 'admin_total_members'), value: stats.totalMembers, icon: Users },
             { label: t(locale, 'admin_active_members'), value: stats.activeMembers, icon: Users },
             { label: t(locale, 'admin_pending_members'), value: stats.pendingMembers, icon: Users },
+            { label: t(locale, 'admin_approved_members'), value: stats.approvedMembers, icon: Users },
+            { label: t(locale, 'admin_rejected_members'), value: stats.rejectedMembers, icon: Users },
             { label: t(locale, 'admin_total_deals'), value: stats.totalDeals, icon: Briefcase },
             { label: t(locale, 'admin_open_requests'), value: stats.openRequests, icon: MessageSquare },
           ].map((card) => {
@@ -305,6 +424,7 @@ export default function AdminPage() {
                   <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Email</th>
                   <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Role Type</th>
                   <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Region</th>
+                  <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Tier</th>
                   <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Status</th>
                   <th className="text-right text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-4">Actions</th>
                 </tr>
@@ -316,41 +436,102 @@ export default function AdminPage() {
                     <td className="px-6 py-4 text-sm text-gray-400">{member.email}</td>
                     <td className="px-6 py-4 text-sm text-gray-400">{member.role_type}</td>
                     <td className="px-6 py-4 text-sm text-gray-400">{member.region}</td>
+                    <td className="px-6 py-4 text-sm text-gray-400">{getTierLabel(member.tier)}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          member.status === 'active'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-400'
-                        }`}
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(member.status)}`}
                       >
                         {member.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {member.status === 'pending' ? (
-                        <button
-                          onClick={() => toggleMemberStatus(member.id, 'active')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          {t(locale, 'admin_activate')}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => toggleMemberStatus(member.id, 'pending')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          {t(locale, 'admin_deactivate')}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {member.status === 'pending' && (
+                          <>
+                            {/* Tier selection dropdown */}
+                            <select
+                              value={selectedTiers[member.id] || ''}
+                              onChange={(e) => setSelectedTiers((prev) => ({ ...prev, [member.id]: e.target.value }))}
+                              className="bg-[#0A0A0A] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#C9A96E]/50"
+                            >
+                              <option value="">{t(locale, 'admin_select_tier')}</option>
+                              {TIER_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {t(locale, opt.labelKey)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => approveMember(member.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              {t(locale, 'admin_approve')}
+                            </button>
+                            <button
+                              onClick={() => rejectMember(member.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              {t(locale, 'admin_reject')}
+                            </button>
+                          </>
+                        )}
+                        {member.status === 'approved' && (
+                          <>
+                            <span className="text-xs text-blue-400 mr-2">
+                              {locale === 'de' ? 'Warte auf Zahlung' : 'Awaiting payment'}
+                            </span>
+                            <button
+                              onClick={() => activateMember(member.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                              title="Manually activate (skip payment)"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              {t(locale, 'admin_activate')}
+                            </button>
+                          </>
+                        )}
+                        {member.status === 'active' && member.role !== 'admin' && (
+                          <button
+                            onClick={() => deactivateMember(member.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            {t(locale, 'admin_deactivate')}
+                          </button>
+                        )}
+                        {member.status === 'rejected' && (
+                          <>
+                            {/* Allow re-approving rejected members */}
+                            <select
+                              value={selectedTiers[member.id] || ''}
+                              onChange={(e) => setSelectedTiers((prev) => ({ ...prev, [member.id]: e.target.value }))}
+                              className="bg-[#0A0A0A] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#C9A96E]/50"
+                            >
+                              <option value="">{t(locale, 'admin_select_tier')}</option>
+                              {TIER_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {t(locale, opt.labelKey)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => approveMember(member.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              {t(locale, 'admin_approve')}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {members.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 text-sm">
                       No members found.
                     </td>
                   </tr>
@@ -568,6 +749,64 @@ export default function AdminPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'settings' && (
+        <div className="max-w-2xl">
+          <div className="bg-[#111111] rounded-xl p-6 border border-white/5">
+            <h3
+              className="text-lg text-white mb-6"
+              style={{ fontFamily: 'Playfair Display, serif' }}
+            >
+              {t(locale, 'admin_tier_prices')}
+            </h3>
+
+            <div className="space-y-5" style={{ fontFamily: 'Inter, sans-serif' }}>
+              {TIER_OPTIONS.map((tier) => {
+                const priceKey = `tier_${tier.value}_price`;
+                return (
+                  <div key={tier.value}>
+                    <label className="block text-xs text-gray-400 mb-1.5 uppercase tracking-wider">
+                      {t(locale, tier.labelKey)} (CHF)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">CHF</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={tierPrices[priceKey] || ''}
+                        onChange={(e) => setTierPrices((prev) => ({ ...prev, [priceKey]: e.target.value }))}
+                        className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg pl-14 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#C9A96E]/50"
+                        placeholder="0"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      = CHF {Number(tierPrices[priceKey] || 0).toLocaleString()} ({(Number(tierPrices[priceKey] || 0) * 100).toLocaleString()} {locale === 'de' ? 'Rappen' : 'cents'})
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-8 flex items-center gap-4">
+              <button
+                onClick={saveSettings}
+                disabled={savingSettings}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg bg-[#C9A96E] text-black hover:bg-[#B8944D] transition-colors disabled:opacity-50"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <Check className="w-4 h-4" />
+                {savingSettings ? (locale === 'de' ? 'Speichern...' : 'Saving...') : t(locale, 'save')}
+              </button>
+              {settingsSaved && (
+                <span className="text-emerald-400 text-sm animate-pulse">
+                  {t(locale, 'success')}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -30,8 +30,17 @@ function DashboardGuard({ children }: { children: React.ReactNode }) {
         .eq('id', data.user.id)
         .single();
 
+      // Only active (paid) members can access the dashboard
       if (!m || !m.paid || m.status !== 'active') {
-        router.replace('/payment');
+        // Pending members go to payment page (which shows "under review")
+        // Approved members go to payment page (which shows payment form)
+        // Rejected members go to login
+        if (m?.status === 'rejected') {
+          await supabase.auth.signOut();
+          router.replace('/login');
+        } else {
+          router.replace('/payment');
+        }
         return;
       }
       setReady(true);

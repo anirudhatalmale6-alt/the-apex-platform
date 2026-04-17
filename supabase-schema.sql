@@ -10,10 +10,28 @@ CREATE TABLE members (
   role_type TEXT DEFAULT '',
   region TEXT DEFAULT '',
   industry TEXT DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'active', 'rejected')),
   paid BOOLEAN NOT NULL DEFAULT FALSE,
+  tier TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Settings table for configurable tier prices
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert default tier prices (stored in cents)
+INSERT INTO settings (key, value) VALUES
+  ('tier_inner_price', '200000'),
+  ('tier_private_price', '1000000'),
+  ('tier_sanctum_price', '2000000'),
+  ('tier_inner_name', 'Inner Circle'),
+  ('tier_private_name', 'Private Circle'),
+  ('tier_sanctum_name', 'Apex Inner Sanctum')
+ON CONFLICT (key) DO NOTHING;
 
 -- Deals / Opportunities table
 CREATE TABLE deals (
@@ -95,6 +113,22 @@ CREATE POLICY "Active members can create requests" ON requests
 
 CREATE POLICY "Admins can update requests" ON requests
   FOR UPDATE USING (EXISTS (SELECT 1 FROM members WHERE id = auth.uid() AND role = 'admin'));
+
+-- Settings RLS
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read settings" ON settings
+  FOR SELECT USING (true);
+
+CREATE POLICY "Admins can update settings" ON settings
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM members WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can insert settings" ON settings
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM members WHERE id = auth.uid() AND role = 'admin')
+  );
 
 -- Create initial admin user (run after first signup)
 -- UPDATE members SET role = 'admin' WHERE email = 'your-admin@email.com';

@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       industry,
       status: 'pending',
       paid: false,
+      tier: null,
     });
 
     if (memberError) {

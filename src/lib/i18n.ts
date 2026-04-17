@@ -92,6 +92,23 @@ const translations = {
     admin_pending_members: 'Pending',
     admin_total_deals: 'Total Deals',
     admin_open_requests: 'Open Requests',
+    // Registration confirmation
+    register_thanks_title: 'Thank You for Your Application',
+    register_thanks_subtitle: 'Our team will review your application and contact you within 48 hours.',
+    register_thanks_note: 'Membership fees range from CHF 2,000 to CHF 20,000 (one-time).',
+    register_thanks_back: 'Back to Home',
+    // Payment - tier
+    payment_under_review: 'Your application is being reviewed. You will be notified once approved.',
+    payment_tier_label: 'Your Membership Tier',
+    // Admin - tiers & settings
+    admin_settings: 'Settings',
+    admin_tier_prices: 'Tier Prices',
+    admin_tier_inner: 'Inner Circle',
+    admin_tier_private: 'Private Circle',
+    admin_tier_sanctum: 'Apex Inner Sanctum',
+    admin_select_tier: 'Select Tier',
+    admin_approved_members: 'Approved',
+    admin_rejected_members: 'Rejected',
     // Common
     loading: 'Loading...',
     save: 'Save',
@@ -200,6 +217,23 @@ const translations = {
     admin_pending_members: 'Ausstehend',
     admin_total_deals: 'Deals gesamt',
     admin_open_requests: 'Offene Anfragen',
+    // Registration confirmation
+    register_thanks_title: 'Vielen Dank f\u00fcr Ihre Bewerbung',
+    register_thanks_subtitle: 'Unser Team wird Ihre Bewerbung pr\u00fcfen und Sie innerhalb von 48 Stunden kontaktieren.',
+    register_thanks_note: 'Mitgliedschaftsgeb\u00fchren liegen zwischen CHF 2\'000 und CHF 20\'000 (einmalig).',
+    register_thanks_back: 'Zur\u00fcck zur Startseite',
+    // Payment - tier
+    payment_under_review: 'Ihre Bewerbung wird gepr\u00fcft. Sie werden benachrichtigt, sobald sie genehmigt ist.',
+    payment_tier_label: 'Ihre Mitgliedschaftsstufe',
+    // Admin - tiers & settings
+    admin_settings: 'Einstellungen',
+    admin_tier_prices: 'Stufenpreise',
+    admin_tier_inner: 'Inner Circle',
+    admin_tier_private: 'Private Circle',
+    admin_tier_sanctum: 'Apex Inner Sanctum',
+    admin_select_tier: 'Stufe w\u00e4hlen',
+    admin_approved_members: 'Genehmigt',
+    admin_rejected_members: 'Abgelehnt',
     loading: 'Laden...',
     save: 'Speichern',
     cancel: 'Abbrechen',

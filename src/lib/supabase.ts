@@ -5,6 +5,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export type MemberTier = 'inner' | 'private' | 'sanctum';
+
 export type Member = {
   id: string;
   email: string;
@@ -13,9 +15,16 @@ export type Member = {
   role_type: string;
   region: string;
   industry: string;
-  status: 'pending' | 'active';
+  status: 'pending' | 'approved' | 'active' | 'rejected';
   paid: boolean;
+  tier: MemberTier | null;
   created_at: string;
+};
+
+export type Setting = {
+  key: string;
+  value: string;
+  updated_at: string;
 };
 
 export type Deal = {
