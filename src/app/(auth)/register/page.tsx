@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -28,6 +29,12 @@ export default function RegisterPage() {
 
     const handleLocaleChange = () => setLocale(getLocale());
     window.addEventListener('locale-changed', handleLocaleChange);
+
+    fetch('/api/tier-prices')
+      .then(r => r.json())
+      .then(data => setPriceRange(data))
+      .catch(() => {});
+
     return () => window.removeEventListener('locale-changed', handleLocaleChange);
   }, []);
 
@@ -143,7 +150,11 @@ export default function RegisterPage() {
               }}
             >
               <p className="text-xs" style={{ color: '#C9A96E', letterSpacing: '0.05em' }}>
-                {t(locale, 'register_thanks_note')}
+                {priceRange
+                  ? locale === 'de'
+                    ? `Mitgliedschaftsgebühren liegen zwischen CHF ${priceRange.min.toLocaleString('de-CH')} und CHF ${priceRange.max.toLocaleString('de-CH')} (einmalig).`
+                    : `Membership fees range from CHF ${priceRange.min.toLocaleString('en-CH')} to CHF ${priceRange.max.toLocaleString('en-CH')} (one-time).`
+                  : t(locale, 'register_thanks_note')}
               </p>
             </div>
 
