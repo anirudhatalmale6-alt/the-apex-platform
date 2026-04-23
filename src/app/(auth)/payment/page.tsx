@@ -179,16 +179,7 @@ export default function PaymentPage() {
             transform: visible ? 'translateY(0)' : 'translateY(24px)',
             transition: 'opacity 0.6s ease, transform 0.6s ease',
           }}>
-            <h1 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 36,
-              fontWeight: 700,
-              color: '#C9A96E',
-              letterSpacing: '0.15em',
-              margin: '0 0 12px 0',
-            }}>
-              THE APEX
-            </h1>
+            <img src="/logo.png" alt="THE APEX" style={{ height: 64, width: 'auto', margin: '0 auto 12px auto', display: 'block' }} />
 
             <div style={{
               background: 'linear-gradient(145deg, #111111, #0D0D0D)',

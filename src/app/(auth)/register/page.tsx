@@ -87,20 +87,9 @@ export default function RegisterPage() {
           mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        {/* Logo / Title */}
+        {/* Logo */}
         <div className="text-center mb-10">
-          <h1
-            className="text-4xl font-bold tracking-widest mb-2"
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              background: 'linear-gradient(135deg, #C9A96E 0%, #E8D5A3 50%, #C9A96E 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            THE APEX
-          </h1>
+          <img src="/logo.png" alt="THE APEX" className="h-16 w-auto mx-auto mb-3" />
           {!submitted && (
             <p className="text-sm tracking-[0.3em] uppercase" style={{ color: '#666' }}>
               {t(locale, 'register_subtitle')}

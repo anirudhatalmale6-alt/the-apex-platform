@@ -39,10 +39,8 @@ export default function Sidebar() {
   const nav = (
     <>
       <div className="p-6 border-b border-[--apex-border]">
-        <h1 className="font-playfair text-2xl font-bold tracking-[4px] bg-gradient-to-b from-white via-apex-gold to-apex-gold-dark bg-clip-text text-transparent">
-          THE APEX
-        </h1>
-        <p className="text-[10px] text-apex-muted tracking-[3px] mt-1 uppercase">Members Area</p>
+        <img src="/logo-small.png" alt="THE APEX" className="h-10 w-auto" />
+        <p className="text-[10px] text-apex-muted tracking-[3px] mt-2 uppercase">Members Area</p>
       </div>
       <nav className="flex-1 py-4">
         {links.map(({ href, icon: Icon, label }) => (
